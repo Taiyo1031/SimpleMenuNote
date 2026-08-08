@@ -262,7 +262,12 @@ private struct TagManagementRow: View {
 }
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, storage, language, data, about
+    case general, appearance, storage, language, markdown, data, about
+    var id: String { rawValue }
+}
+
+private enum MarkdownSyntax: String, CaseIterable, Identifiable {
+    case heading, bold, italic, list, link, inlineCode = "inline_code"
     var id: String { rawValue }
 }
 
@@ -284,6 +289,7 @@ private struct SettingsManagementView: View {
                 case .appearance: appearanceSettings
                 case .storage: storageSettings
                 case .language: languageSettings
+                case .markdown: markdownSettings
                 case .data: dataSettings
                 case .about: aboutSettings
                 }
@@ -353,6 +359,34 @@ private struct SettingsManagementView: View {
         }
     }
 
+    private var markdownSettings: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.localized("markdown_guide_title"))
+                        .font(.title2.bold())
+                    Text(model.localized("markdown_guide_intro"))
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(MarkdownSyntax.allCases) { syntax in
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(model.localized("markdown_\(syntax.rawValue)"))
+                            .font(.headline)
+                        Text(model.localized("markdown_\(syntax.rawValue)_example"))
+                            .font(.system(.body, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+        }
+    }
+
     private var dataSettings: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(model.localized("data_description"))
@@ -394,6 +428,7 @@ private struct SettingsManagementView: View {
         case .appearance: return "paintbrush"
         case .storage: return "externaldrive"
         case .language: return "globe"
+        case .markdown: return "doc.text"
         case .data: return "cylinder"
         case .about: return "info.circle"
         }

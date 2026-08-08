@@ -11,7 +11,25 @@ struct SimpleMenuNoteApp: App {
             EmptyView()
         }
         .commands {
+            ApplicationCommands(
+                model: appDelegate.model,
+                openSettings: { appDelegate.openSettings() }
+            )
             TextEditingCommands()
+        }
+    }
+}
+
+private struct ApplicationCommands: Commands {
+    @ObservedObject var model: AppModel
+    let openSettings: () -> Void
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("\(model.localized("settings"))…") {
+                openSettings()
+            }
+            .keyboardShortcut(",", modifiers: [.command])
         }
     }
 }
@@ -126,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         showManagement(section: .notes)
     }
 
-    @objc private func openSettings() {
+    @objc func openSettings() {
         showManagement(section: .settings)
     }
 
