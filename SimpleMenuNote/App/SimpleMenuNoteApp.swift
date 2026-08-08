@@ -16,7 +16,7 @@ struct SimpleMenuNoteApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let model = AppModel()
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var managementWindowController: ManagementWindowController?
     private var cancellables = Set<AnyCancellable>()
@@ -40,6 +40,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
         model.bootstrap()
+
+        // A menu-bar-only app otherwise has no visible first-launch surface. Show
+        // onboarding once the status item has joined the menu bar so users can
+        // select storage immediately and can see where the item is anchored.
+        if model.folderURL == nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.showPopover()
+            }
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -80,11 +89,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func configureStatusItem() {
-        guard let button = statusItem.button else { return }
-        let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "SimpleMenuNote")
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = item
+        item.isVisible = true
+        guard let button = item.button else { return }
+
+        let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let image = NSImage(
+            systemSymbolName: "note.text",
+            accessibilityDescription: "SimpleMenuNote"
+        )?.withSymbolConfiguration(configuration)
         image?.isTemplate = true
-        button.image = image
+        if let image {
+            button.image = image
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleProportionallyDown
+        } else {
+            // This should only be reached on an OS missing the SF Symbol, but a
+            // text fallback is preferable to an invisible status item.
+            button.title = "N"
+            button.font = .systemFont(ofSize: 13, weight: .semibold)
+        }
         button.toolTip = "SimpleMenuNote"
+        button.setAccessibilityLabel("SimpleMenuNote")
         button.target = self
         button.action = #selector(statusItemClicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -120,7 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             popover.performClose(nil)
             return
         }
-        guard let button = statusItem.button else { return }
+        showPopover()
+    }
+
+    private func showPopover() {
+        guard !popover.isShown, let button = statusItem?.button else { return }
         model.refreshFromExternalChanges()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate(ignoringOtherApps: true)
@@ -128,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func showStatusMenu() {
-        guard let button = statusItem.button else { return }
+        guard let statusItem, let button = statusItem.button else { return }
         let menu = NSMenu()
         let notesItem = menu.addItem(
             withTitle: model.localized("open_management"),
