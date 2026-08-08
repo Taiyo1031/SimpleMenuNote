@@ -19,6 +19,7 @@
 		B0000000000000000000000A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* Localizable.xcstrings */; };
 		B10000000000000000000001 /* FrontMatterCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* FrontMatterCodecTests.swift */; };
 		B10000000000000000000002 /* NoteRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* NoteRepositoryTests.swift */; };
+		B10000000000000000000003 /* ApplicationMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* ApplicationMenuTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +47,7 @@
 		A0000000000000000000000C /* SimpleMenuNote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SimpleMenuNote.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000001 /* FrontMatterCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontMatterCodecTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000002 /* NoteRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepositoryTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000003 /* ApplicationMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenuTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000001 /* SimpleMenuNote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SimpleMenuNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000002 /* SimpleMenuNoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SimpleMenuNoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -137,6 +139,7 @@
 		G00000000000000000000008 /* SimpleMenuNoteTests */ = {
 			isa = PBXGroup;
 			children = (
+				A10000000000000000000003 /* ApplicationMenuTests.swift */,
 				A10000000000000000000001 /* FrontMatterCodecTests.swift */,
 				A10000000000000000000002 /* NoteRepositoryTests.swift */,
 			);
@@ -270,6 +273,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000003 /* ApplicationMenuTests.swift in Sources */,
 				B10000000000000000000001 /* FrontMatterCodecTests.swift in Sources */,
 				B10000000000000000000002 /* NoteRepositoryTests.swift in Sources */,
 			);

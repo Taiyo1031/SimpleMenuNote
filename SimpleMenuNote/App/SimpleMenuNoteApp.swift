@@ -10,6 +10,53 @@ struct SimpleMenuNoteApp: App {
         Settings {
             EmptyView()
         }
+        .commands {
+            TextEditingCommands()
+        }
+    }
+}
+
+private struct TextEditingCommands: Commands {
+    var body: some Commands {
+        CommandMenu("Edit") {
+            Button("Undo") {
+                sendAction(Selector(("undo:")))
+            }
+            .keyboardShortcut("z", modifiers: [.command])
+
+            Button("Redo") {
+                sendAction(Selector(("redo:")))
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Cut") {
+                sendAction(#selector(NSText.cut(_:)))
+            }
+            .keyboardShortcut("x", modifiers: [.command])
+
+            Button("Copy") {
+                sendAction(#selector(NSText.copy(_:)))
+            }
+            .keyboardShortcut("c", modifiers: [.command])
+
+            Button("Paste") {
+                sendAction(#selector(NSText.paste(_:)))
+            }
+            .keyboardShortcut("v", modifiers: [.command])
+
+            Divider()
+
+            Button("Select All") {
+                sendAction(#selector(NSText.selectAll(_:)))
+            }
+            .keyboardShortcut("a", modifiers: [.command])
+        }
+    }
+
+    private func sendAction(_ action: Selector) {
+        NSApp.sendAction(action, to: nil, from: nil)
     }
 }
 
@@ -25,7 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
         configurePopover()
-        configureApplicationMenu()
 
         model.requestManagementWindow = { [weak self] section in
             self?.showManagement(section: section)
@@ -126,63 +172,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             rootView: NoteModeView()
                 .environmentObject(model)
         )
-    }
-
-    private func configureApplicationMenu() {
-        let mainMenu = NSMenu()
-
-        let applicationItem = NSMenuItem()
-        mainMenu.addItem(applicationItem)
-        let applicationMenu = NSMenu()
-        applicationMenu.addItem(
-            withTitle: "Quit SimpleMenuNote",
-            action: #selector(quitApplication),
-            keyEquivalent: "q"
-        ).target = self
-        applicationItem.submenu = applicationMenu
-
-        // Even though this is an LSUIElement app, AppKit resolves standard text
-        // shortcuts through the main menu before forwarding them to the first
-        // responder. Without these items Command-C/V/X/Z only produce a beep.
-        let editItem = NSMenuItem()
-        mainMenu.addItem(editItem)
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(
-            withTitle: "Undo",
-            action: Selector(("undo:")),
-            keyEquivalent: "z"
-        )
-        let redoItem = editMenu.addItem(
-            withTitle: "Redo",
-            action: Selector(("redo:")),
-            keyEquivalent: "z"
-        )
-        redoItem.keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(.separator())
-        editMenu.addItem(
-            withTitle: "Cut",
-            action: #selector(NSText.cut(_:)),
-            keyEquivalent: "x"
-        )
-        editMenu.addItem(
-            withTitle: "Copy",
-            action: #selector(NSText.copy(_:)),
-            keyEquivalent: "c"
-        )
-        editMenu.addItem(
-            withTitle: "Paste",
-            action: #selector(NSText.paste(_:)),
-            keyEquivalent: "v"
-        )
-        editMenu.addItem(.separator())
-        editMenu.addItem(
-            withTitle: "Select All",
-            action: #selector(NSText.selectAll(_:)),
-            keyEquivalent: "a"
-        )
-        editItem.submenu = editMenu
-
-        NSApp.mainMenu = mainMenu
     }
 
     private func togglePopover() {
