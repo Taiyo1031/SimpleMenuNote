@@ -5,6 +5,10 @@ struct NoteModeView: View {
     @State private var isTagPickerPresented = false
     @State private var resizeStartHeight: Double?
     @State private var showInitialResizeHint = false
+    @State private var showNavigationHint = false
+    @State private var isPreviewing = false
+    @State private var finishPreviewEditingToken = 0
+    @State private var confirmDelete = false
 
     var body: some View {
         Group {
@@ -17,12 +21,9 @@ struct NoteModeView: View {
         .frame(width: 380, height: model.popoverHeight)
         .preferredColorScheme(model.preferredColorScheme)
         .onExitCommand { model.closePopover() }
-        .task {
-            guard !model.resizeHintShown else { return }
-            withAnimation { showInitialResizeHint = true }
-            try? await Task.sleep(for: .seconds(4))
-            withAnimation { showInitialResizeHint = false }
-            model.markResizeHintShown()
+        .task(id: model.folderURL) {
+            guard model.folderURL != nil else { return }
+            await presentFirstUseHints()
         }
         .alert(
             model.localized("error"),
@@ -66,17 +67,31 @@ struct NoteModeView: View {
 
             ZStack(alignment: .bottom) {
                 if let note = model.currentNote {
-                    MarkdownTextView(
-                        text: Binding(
-                            get: { model.currentNote?.body ?? "" },
-                            set: { model.updateCurrentBody($0) }
-                        ),
-                        noteID: note.id,
-                        fontSize: model.fontSize,
-                        restorationState: model.editorState(for: note.id),
-                        focusToken: model.editorFocusToken,
-                        onStateChange: { model.updateEditorState($0, for: note.id) }
-                    )
+                    if isPreviewing {
+                        MarkdownPreviewView(
+                            markdown: Binding(
+                                get: { model.currentNote?.body ?? "" },
+                                set: { model.updateCurrentBody($0) }
+                            ),
+                            noteID: note.id,
+                            fontSize: model.fontSize,
+                            restorationState: model.editorState(for: note.id),
+                            finishEditingToken: finishPreviewEditingToken,
+                            onStateChange: { model.updateEditorState($0, for: note.id) }
+                        )
+                    } else {
+                        MarkdownTextView(
+                            text: Binding(
+                                get: { model.currentNote?.body ?? "" },
+                                set: { model.updateCurrentBody($0) }
+                            ),
+                            noteID: note.id,
+                            fontSize: model.fontSize,
+                            restorationState: model.editorState(for: note.id),
+                            focusToken: model.editorFocusToken,
+                            onStateChange: { model.updateEditorState($0, for: note.id) }
+                        )
+                    }
                 } else {
                     emptyModeView
                 }
@@ -104,7 +119,26 @@ struct NoteModeView: View {
                     .shadow(radius: 3, y: 1)
                     .padding(.bottom, 42)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else if showNavigationHint {
+                Text(model.localized("navigation_shortcut_hint"))
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .shadow(radius: 3, y: 1)
+                    .padding(.bottom, 42)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+        }
+        .background {
+            KeyboardNavigationMonitor(
+                isEnabled: !confirmDelete && !isTagPickerPresented,
+                previousNote: { navigate(model.goPrevious) },
+                nextNote: { navigate(model.goNext) },
+                previousTag: { navigate(model.goToPreviousTagMode) },
+                nextTag: { navigate(model.goToNextTagMode) }
+            )
         }
     }
 
@@ -124,6 +158,7 @@ struct NoteModeView: View {
                     Text(model.modeDisplayName(model.selectedMode))
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
+                        .frame(maxWidth: 76)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8, weight: .semibold))
                 }
@@ -133,32 +168,45 @@ struct NoteModeView: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help(model.localized("switch_tag_mode"))
+            .help(model.localized("switch_tag_mode_shortcut"))
 
             if let note = model.currentNote {
                 let noteTags = model.tags(for: note)
-                ForEach(Array(noteTags.prefix(3))) { tag in
-                    Menu {
-                        Button(model.localized("remove_tag"), role: .destructive) {
-                            model.removeTag(tag.id, from: note.id)
+                HStack(spacing: 3) {
+                    ForEach(Array(noteTags.prefix(3))) { tag in
+                        Menu {
+                            Button(model.localized("remove_tag"), role: .destructive) {
+                                model.removeTag(tag.id, from: note.id)
+                            }
+                        } label: {
+                            Text("#\(tag.name)")
+                                .font(.system(size: 10.5))
+                                .lineLimit(1)
+                                .foregroundStyle(.secondary)
                         }
-                    } label: {
-                        Text("#\(tag.name)")
-                            .font(.system(size: 10.5))
-                            .lineLimit(1)
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                    if noteTags.count > 3 {
+                        Text("+\(noteTags.count - 3)")
+                            .font(.system(size: 10.5, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
-                if noteTags.count > 3 {
-                    Text("+\(noteTags.count - 3)")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                .frame(maxWidth: 92, alignment: .leading)
+                .clipped()
             }
 
             Spacer(minLength: 2)
+
+            Button {
+                togglePreview()
+            } label: {
+                Image(systemName: isPreviewing ? "pencil" : "eye")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.currentNote == nil)
+            .help(model.localized(isPreviewing ? "edit" : "preview"))
 
             Button {
                 isTagPickerPresented.toggle()
@@ -181,15 +229,81 @@ struct NoteModeView: View {
             .buttonStyle(.plain)
             .help(model.localized("new_note"))
 
+            Button(role: .destructive) {
+                requestCurrentNoteDeletion()
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.currentNote == nil)
+            .help(model.localized("delete_note"))
+            .alert(model.localized("delete_note_title"), isPresented: $confirmDelete) {
+                Button(model.localized("cancel"), role: .cancel) {}
+                Button(model.localized("delete"), role: .destructive) {
+                    guard let noteID = model.currentNoteID else { return }
+                    model.deleteNote(
+                        noteID,
+                        orderedNoteIDs: model.modeNotes.map(\.id),
+                        confirmed: true
+                    )
+                }
+            } message: {
+                Text(model.localized("delete_note_message"))
+            }
+
             Button {
                 model.showManagement(.notes)
             } label: {
-                Image(systemName: "ellipsis")
+                HoverToolbarIcon(systemName: "rectangle.on.rectangle")
             }
             .buttonStyle(.plain)
             .help(model.localized("open_management"))
+            .accessibilityLabel(model.localized("open_management"))
         }
         .imageScale(.small)
+    }
+
+    private func togglePreview() {
+        if isPreviewing {
+            isPreviewing = false
+            model.requestEditorFocus()
+        } else {
+            model.flushPendingSave()
+            isPreviewing = true
+        }
+    }
+
+    private func navigate(_ action: () -> Void) {
+        isTagPickerPresented = false
+        finishPreviewEditingToken &+= 1
+        model.flushPendingSave()
+        action()
+    }
+
+    private func requestCurrentNoteDeletion() {
+        guard let noteID = model.currentNoteID else { return }
+        finishPreviewEditingToken &+= 1
+        if model.requiresNoteDeleteConfirmation(for: noteID) {
+            confirmDelete = true
+        } else {
+            model.deleteNote(noteID, orderedNoteIDs: model.modeNotes.map(\.id))
+        }
+    }
+
+    @MainActor
+    private func presentFirstUseHints() async {
+        if !model.resizeHintShown {
+            withAnimation { showInitialResizeHint = true }
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation { showInitialResizeHint = false }
+            model.markResizeHintShown()
+        }
+        guard !Task.isCancelled, !model.navigationHintShown else { return }
+        try? await Task.sleep(for: .milliseconds(350))
+        withAnimation { showNavigationHint = true }
+        try? await Task.sleep(for: .seconds(5))
+        withAnimation { showNavigationHint = false }
+        model.markNavigationHintShown()
     }
 
     private var emptyModeView: some View {
@@ -214,7 +328,7 @@ struct NoteModeView: View {
             }
             .buttonStyle(.plain)
             .disabled(!model.canGoPrevious)
-            .help(model.localized("previous_note"))
+            .help(model.localized("previous_note_shortcut"))
 
             Spacer()
             Text(positionText)
@@ -228,7 +342,7 @@ struct NoteModeView: View {
             }
             .buttonStyle(.plain)
             .disabled(!model.canGoNext)
-            .help(model.localized("next_note"))
+            .help(model.localized("next_note_shortcut"))
         }
         .padding(.horizontal, 10)
     }
@@ -259,9 +373,17 @@ struct NoteModeView: View {
     }
 
     private func toastView(_ toast: AppModel.Toast) -> some View {
+        UndoToastView(toast: toast)
+    }
+}
+
+struct UndoToastView: View {
+    @EnvironmentObject private var model: AppModel
+    let toast: AppModel.Toast
+
+    var body: some View {
         HStack(spacing: 10) {
-            Text(toast.text)
-                .lineLimit(2)
+            Text(toast.text).lineLimit(2)
             if toast.offersUndo {
                 Button(model.localized("undo")) { model.performUndo() }
                     .buttonStyle(.plain)
@@ -273,6 +395,72 @@ struct NoteModeView: View {
         .padding(.vertical, 8)
         .background(.regularMaterial, in: Capsule())
         .shadow(radius: 4, y: 2)
+    }
+}
+
+private struct HoverToolbarIcon: View {
+    let systemName: String
+    @State private var hovering = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .frame(width: 32, height: 28)
+            .background(hovering ? Color.primary.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+    }
+}
+
+private struct KeyboardNavigationMonitor: NSViewRepresentable {
+    let isEnabled: Bool
+    let previousNote: () -> Void
+    let nextNote: () -> Void
+    let previousTag: () -> Void
+    let nextTag: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
+        context.coordinator.installMonitor()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    final class Coordinator {
+        var parent: KeyboardNavigationMonitor
+        weak var hostView: NSView?
+        private var monitor: Any?
+
+        init(parent: KeyboardNavigationMonitor) { self.parent = parent }
+
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+
+        func installMonitor() {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      parent.isEnabled,
+                      let window = hostView?.window,
+                      window.isVisible,
+                      event.window === window else { return event }
+                let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+                guard modifiers == [.command, .option] else { return event }
+                switch event.keyCode {
+                case 123: parent.previousNote()
+                case 124: parent.nextNote()
+                case 125: parent.nextTag()
+                case 126: parent.previousTag()
+                default: return event
+                }
+                return nil
+            }
+        }
     }
 }
 

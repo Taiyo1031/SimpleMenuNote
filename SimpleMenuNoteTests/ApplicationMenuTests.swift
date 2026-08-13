@@ -61,6 +61,11 @@ final class ApplicationMenuTests: XCTestCase {
         )
         let expected: [(key: String, english: String, japanese: String)] = [
             ("markdown_guide_title", "Writing in Markdown", "Markdownの書き方"),
+            (
+                "markdown_preview_hint",
+                "Select the eye to preview. Click a block to edit its Markdown, then click outside or press Command-Return. Links open in your browser. Use Command-Option-Arrows to move between notes and tags.",
+                "目のボタンでプレビューし、ブロックをクリックするとMarkdown原文を編集できます。外側クリックまたは⌘Returnで表示へ戻り、リンクはブラウザで開きます。⌘⌥矢印でNoteとTagを移動できます。"
+            ),
             ("markdown_heading_example", "# Heading", "# 見出し"),
             ("markdown_bold_example", "**Bold text**", "**太字のテキスト**"),
             ("markdown_italic_example", "*Italic text*", "*斜体のテキスト*"),

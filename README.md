@@ -16,6 +16,12 @@ SimpleMenuNoteは、macOSのメニューバーからすぐに開いて書けるM
 
 アプリは`LSUIElement`として動作するため、Dockには常駐しません。メニューバーアイコンを右クリックすると管理画面と終了メニューを表示できます。
 
+Note上部の目のボタンを押すとMarkdownプレビューへ切り替わり、鉛筆ボタンを押すとNote全体の原文編集へ戻ります。プレビューは見出し、太字、斜体、箇条書き、番号付きリスト、リンク、インラインコード、引用、コードブロック、区切り線を表示します。表示中のブロックをクリックすると、そのブロックだけMarkdown原文で編集できます。外側のクリック、`⌘Return`、`Esc`で完成形表示へ戻ります。リンクのクリックはブラウザで開きます。管理画面のNoteエディタでも同じ切替が使えます。
+
+小さいNoteウインドウでは、`⌘⌥←`／`⌘⌥→`でNoteを循環し、`⌘⌥↑`／`⌘⌥↓`で「すべて → Tag名順 → Tagなし」を循環できます。通常の矢印キーは本文中のカーソル移動に使えます。
+
+NoteとTagの削除確認は、それぞれ最初に削除を確定した時だけ表示されます。削除後5秒間は画面下部の「元に戻す」から復元できます。確認を再表示したい場合は、設定の「データ」から「削除確認をもう一度表示」を選択してください。Noteファイルは削除時にmacOSのゴミ箱へ移動します。
+
 ## Data format
 
 1 Noteは1つの`.md`ファイルです。本文はアプリ独自DBではなくMarkdownファイルを正本として保存します。
@@ -47,13 +53,13 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-テストはFront Matter、外部Markdown取込、重複UUID修復、Atomic Save競合保護、メタデータ、保存先移行を検証します。
+テストはFront Matter、外部Markdown取込、重複UUID修復、Atomic Save競合保護、メタデータ、保存先移行、Markdownプレビュー変換と原文範囲、Tag循環、削除確認・復元を検証します。
 
 ## Development DMG
 
 ```sh
-chmod +x Scripts/build-dmg.sh
-Scripts/build-dmg.sh
+chmod +x scripts/build-dmg.sh
+scripts/build-dmg.sh
 ```
 
 `dist/SimpleMenuNote-1.0.0.dmg`が生成されます。このDMG内のアプリはUniversal Binaryかつad-hoc署名で、Apple公証はされていません。
@@ -63,14 +69,14 @@ Scripts/build-dmg.sh
 正式配布時は`SIGN_IDENTITY`を指定すると、同じスクリプトがアプリをHardened Runtime付きでDeveloper ID署名し、DMGにも署名します。資格情報はリポジトリへ保存しません。
 
 ```sh
-SIGN_IDENTITY='Developer ID Application: YOUR NAME (TEAMID)' Scripts/build-dmg.sh
+SIGN_IDENTITY='Developer ID Application: YOUR NAME (TEAMID)' scripts/build-dmg.sh
 ```
 
 続いてnotarytool用のKeychain Profileを設定して公証します。
 
 ```sh
 xcrun notarytool store-credentials SimpleMenuNote-Notary
-NOTARY_PROFILE=SimpleMenuNote-Notary Scripts/notarize-dmg.sh path/to/SimpleMenuNote-1.0.0.dmg
+NOTARY_PROFILE=SimpleMenuNote-Notary scripts/notarize-dmg.sh path/to/SimpleMenuNote-1.0.0.dmg
 ```
 
 ## Privacy

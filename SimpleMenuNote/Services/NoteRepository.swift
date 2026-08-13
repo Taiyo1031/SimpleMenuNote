@@ -255,9 +255,31 @@ final class NoteRepository {
         return .saved(saved)
     }
 
-    func trash(_ note: NoteRecord) throws {
+    @discardableResult
+    func trash(_ note: NoteRecord) throws -> URL? {
         var resultingURL: NSURL?
         try fileManager.trashItem(at: note.fileURL, resultingItemURL: &resultingURL)
+        return resultingURL as URL?
+    }
+
+    func restoreDeletedNote(_ note: NoteRecord, tagNames: [String]) throws -> NoteRecord {
+        var restored = note
+        let folderURL = note.fileURL.deletingLastPathComponent()
+        if fileManager.fileExists(atPath: restored.fileURL.path) {
+            restored.fileURL = uniqueNoteURL(folderURL: folderURL, date: note.createdAt, id: note.id)
+        }
+
+        let source = FrontMatterCodec.render(
+            id: restored.id,
+            createdAt: restored.createdAt,
+            updatedAt: restored.updatedAt,
+            tagNames: tagNames,
+            body: restored.body,
+            unmanagedLines: restored.unmanagedFrontMatter
+        )
+        try writeAtomically(source, to: restored.fileURL)
+        restored.loadedModificationDate = modificationDate(of: restored.fileURL) ?? Date()
+        return restored
     }
 
     func moveMarkdownFiles(from sourceFolder: URL, to destinationFolder: URL) throws {

@@ -91,6 +91,25 @@ final class NoteRepositoryTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: destination.appendingPathComponent("note.md")), "hello")
     }
 
+    func testRestoreDeletedNoteAvoidsOverwritingAConflictingPath() throws {
+        var note = try repository.createNote(folderURL: notesFolder, tagNames: ["TODO"])
+        note.body = "Restored body"
+        guard case .saved(let saved) = try repository.save(note, tagNames: ["TODO"]) else {
+            return XCTFail("Expected a saved note")
+        }
+        try FileManager.default.removeItem(at: saved.fileURL)
+        try "Do not overwrite".write(to: saved.fileURL, atomically: true, encoding: .utf8)
+
+        let restored = try repository.restoreDeletedNote(saved, tagNames: ["TODO"])
+
+        XCTAssertNotEqual(restored.fileURL, saved.fileURL)
+        XCTAssertEqual(try String(contentsOf: saved.fileURL), "Do not overwrite")
+        let parsed = FrontMatterCodec.parse(try String(contentsOf: restored.fileURL))
+        XCTAssertEqual(parsed.id, saved.id)
+        XCTAssertEqual(parsed.body, "Restored body")
+        XCTAssertEqual(parsed.tagNames, ["TODO"])
+    }
+
     func testMetadataRoundTrip() throws {
         let tag = TagRecord(name: "Idea")
         let noteID = UUID()

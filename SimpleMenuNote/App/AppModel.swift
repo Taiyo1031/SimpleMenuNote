@@ -13,6 +13,9 @@ final class AppModel: ObservableObject {
         static let fontSize = "fontSize"
         static let popoverHeight = "popoverHeight"
         static let resizeHintShown = "resizeHintShown"
+        static let navigationHintShown = "navigationHintShown"
+        static let noteDeleteConfirmed = "noteDeleteConfirmed"
+        static let tagDeleteConfirmed = "tagDeleteConfirmed"
     }
 
     struct Toast: Equatable {
@@ -21,7 +24,9 @@ final class AppModel: ObservableObject {
     }
 
     private enum UndoAction {
-        case restoreTag(noteID: UUID, tagID: UUID, mode: TagMode)
+        case restoreRemovedTag(noteID: UUID, tagID: UUID, mode: TagMode)
+        case restoreDeletedNote(note: NoteRecord, selectedMode: TagMode)
+        case restoreDeletedTag(tag: TagRecord, noteIDs: [UUID], selectedMode: TagMode)
     }
 
     @Published private(set) var notes: [NoteRecord] = []
@@ -35,6 +40,7 @@ final class AppModel: ObservableObject {
     @Published var fontSize: Double
     @Published var popoverHeight: Double
     @Published private(set) var resizeHintShown: Bool
+    @Published private(set) var navigationHintShown: Bool
     @Published var errorMessage: String?
     @Published var toast: Toast?
     @Published private(set) var launchAtLoginEnabled = false
@@ -68,6 +74,7 @@ final class AppModel: ObservableObject {
         let storedHeight = defaults.double(forKey: DefaultsKey.popoverHeight)
         popoverHeight = storedHeight == 0 ? 320 : min(max(storedHeight, 180), 700)
         resizeHintShown = defaults.bool(forKey: DefaultsKey.resizeHintShown)
+        navigationHintShown = defaults.bool(forKey: DefaultsKey.navigationHintShown)
         selectedMode = TagMode.from(storageKey: metadata.selectedModeKey)
         tags = metadata.tags
         ensureInitialTags()
@@ -130,8 +137,15 @@ final class AppModel: ObservableObject {
         return modeNotes.firstIndex { $0.id == currentNoteID }.map { $0 + 1 }
     }
 
-    var canGoPrevious: Bool { (currentPosition ?? 1) > 1 }
-    var canGoNext: Bool { (currentPosition ?? modeNotes.count) < modeNotes.count }
+    var canGoPrevious: Bool { currentPosition != nil && modeNotes.count > 1 }
+    var canGoNext: Bool { currentPosition != nil && modeNotes.count > 1 }
+
+    var tagModes: [TagMode] {
+        let sortedTags = tags.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        return [.all] + sortedTags.map { .tag($0.id) } + [.untagged]
+    }
 
     func modeDisplayName(_ mode: TagMode) -> String {
         switch mode {
@@ -184,13 +198,23 @@ final class AppModel: ObservableObject {
     }
 
     func goPrevious() {
-        guard let index = currentPosition.map({ $0 - 1 }), index > 0 else { return }
-        selectNote(modeNotes[index - 1].id)
+        guard let index = currentPosition.map({ $0 - 1 }), modeNotes.count > 1 else { return }
+        selectNote(modeNotes[(index - 1 + modeNotes.count) % modeNotes.count].id)
     }
 
     func goNext() {
-        guard let index = currentPosition.map({ $0 - 1 }), index + 1 < modeNotes.count else { return }
-        selectNote(modeNotes[index + 1].id)
+        guard let index = currentPosition.map({ $0 - 1 }), modeNotes.count > 1 else { return }
+        selectNote(modeNotes[(index + 1) % modeNotes.count].id)
+    }
+
+    func goToPreviousTagMode() {
+        guard let index = tagModes.firstIndex(of: selectedMode), !tagModes.isEmpty else { return }
+        selectMode(tagModes[(index - 1 + tagModes.count) % tagModes.count])
+    }
+
+    func goToNextTagMode() {
+        guard let index = tagModes.firstIndex(of: selectedMode), !tagModes.isEmpty else { return }
+        selectMode(tagModes[(index + 1) % tagModes.count])
     }
 
     func createNote() {
@@ -286,7 +310,7 @@ final class AppModel: ObservableObject {
             currentNoteID = remaining.indices.contains(oldPosition)
                 ? remaining[oldPosition].id
                 : remaining.last?.id
-            undoAction = .restoreTag(noteID: targetID, tagID: tagID, mode: selectedMode)
+            undoAction = .restoreRemovedTag(noteID: targetID, tagID: tagID, mode: selectedMode)
             showToast(localized("removed_from_tag"), offersUndo: true)
         }
         rememberCurrentNote()
@@ -326,9 +350,15 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func deleteTag(_ tagID: UUID) {
+    var requiresTagDeleteConfirmation: Bool {
+        !defaults.bool(forKey: DefaultsKey.tagDeleteConfirmed)
+    }
+
+    func deleteTag(_ tagID: UUID, confirmed: Bool = false) {
         flushPendingSave()
+        guard let deletedTag = tags.first(where: { $0.id == tagID }) else { return }
         let affectedIDs = notes.filter { $0.tagIDs.contains(tagID) }.map(\.id)
+        let previousMode = selectedMode
         for id in affectedIDs {
             guard let index = notes.firstIndex(where: { $0.id == id }) else { continue }
             notes[index].tagIDs.remove(tagID)
@@ -338,6 +368,11 @@ final class AppModel: ObservableObject {
         metadata.tags = tags
         if selectedMode == .tag(tagID) { selectMode(.all) }
         saveMetadataNow()
+        if confirmed {
+            defaults.set(true, forKey: DefaultsKey.tagDeleteConfirmed)
+        }
+        undoAction = .restoreDeletedTag(tag: deletedTag, noteIDs: affectedIDs, selectedMode: previousMode)
+        showToast(localized("tag_deleted"), offersUndo: true)
     }
 
     func noteCount(for tagID: UUID) -> Int {
@@ -346,22 +381,57 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func deleteNote(_ noteID: UUID) {
+    func requiresNoteDeleteConfirmation(for noteID: UUID) -> Bool {
+        guard let note = notes.first(where: { $0.id == noteID }) else { return false }
+        if note.isTransientBlank && note.isBlank { return false }
+        return !defaults.bool(forKey: DefaultsKey.noteDeleteConfirmed)
+    }
+
+    @discardableResult
+    func deleteNote(
+        _ noteID: UUID,
+        orderedNoteIDs: [UUID]? = nil,
+        confirmed: Bool = false
+    ) -> Bool {
         flushPendingSave()
-        guard let index = notes.firstIndex(where: { $0.id == noteID }) else { return }
+        guard let index = notes.firstIndex(where: { $0.id == noteID }) else { return false }
+        let deletedNote = notes[index]
+        let isDisposableBlank = deletedNote.isTransientBlank && deletedNote.isBlank
+        let order = orderedNoteIDs ?? modeNotes.map(\.id)
+        let removedPosition = order.firstIndex(of: noteID)
+        let previousMode = selectedMode
         do {
-            try repository.trash(notes[index])
+            try repository.trash(deletedNote)
             notes.remove(at: index)
             metadata.editorStates.removeValue(forKey: noteID.uuidString)
             if metadata.transientBlankNoteID == noteID { metadata.transientBlankNoteID = nil }
             metadata.lastNoteByMode = metadata.lastNoteByMode.filter { $0.value != noteID }
-            if currentNoteID == noteID { currentNoteID = modeNotes.first?.id }
+            let remainingOrder = order.filter { candidate in
+                candidate != noteID && notes.contains(where: { $0.id == candidate })
+            }
+            let fallbackID: UUID? = {
+                guard !remainingOrder.isEmpty else { return nil }
+                let position = min(removedPosition ?? 0, remainingOrder.count - 1)
+                return remainingOrder[position]
+            }()
+            if currentNoteID == noteID {
+                currentNoteID = fallbackID ?? modeNotes.first?.id
+            }
             if selectedManagementNoteID == noteID {
-                selectedManagementNoteID = notes.sorted { $0.updatedAt > $1.updatedAt }.first?.id
+                selectedManagementNoteID = fallbackID
             }
             saveMetadataNow()
+            if !isDisposableBlank {
+                if confirmed {
+                    defaults.set(true, forKey: DefaultsKey.noteDeleteConfirmed)
+                }
+                undoAction = .restoreDeletedNote(note: deletedNote, selectedMode: previousMode)
+                showToast(localized("note_deleted"), offersUndo: true)
+            }
+            return true
         } catch {
             present(error)
+            return false
         }
     }
 
@@ -474,6 +544,17 @@ final class AppModel: ObservableObject {
         defaults.set(true, forKey: DefaultsKey.resizeHintShown)
     }
 
+    func markNavigationHintShown() {
+        navigationHintShown = true
+        defaults.set(true, forKey: DefaultsKey.navigationHintShown)
+    }
+
+    func resetDeletionConfirmations() {
+        defaults.set(false, forKey: DefaultsKey.noteDeleteConfirmed)
+        defaults.set(false, forKey: DefaultsKey.tagDeleteConfirmed)
+        showToast(localized("delete_confirmations_reset"), offersUndo: false)
+    }
+
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -504,10 +585,44 @@ final class AppModel: ObservableObject {
         undoAction = nil
         toast = nil
         switch action {
-        case .restoreTag(let noteID, let tagID, let mode):
+        case .restoreRemovedTag(let noteID, let tagID, let mode):
             addTag(tagID, to: noteID)
             selectMode(mode)
             selectNote(noteID)
+        case .restoreDeletedNote(let note, let mode):
+            do {
+                let tagNames = tags.filter { note.tagIDs.contains($0.id) }.map(\.name).sorted()
+                let restored = try repository.restoreDeletedNote(note, tagNames: tagNames)
+                notes.append(restored)
+                selectedMode = mode
+                metadata.selectedModeKey = mode.storageKey
+                currentNoteID = restored.id
+                selectedManagementNoteID = restored.id
+                metadata.lastNoteByMode[mode.storageKey] = restored.id
+                saveMetadataNow()
+                requestEditorFocus()
+            } catch {
+                present(error)
+            }
+        case .restoreDeletedTag(let tag, let noteIDs, let mode):
+            let restoredTag: TagRecord
+            if let existing = tags.first(where: {
+                normalizedTagName($0.name) == normalizedTagName(tag.name)
+            }) {
+                restoredTag = existing
+            } else {
+                restoredTag = tag
+                tags.append(tag)
+                tags.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
+            for noteID in noteIDs {
+                addTag(restoredTag.id, to: noteID)
+            }
+            metadata.tags = tags
+            if mode == .tag(tag.id) {
+                selectMode(.tag(restoredTag.id))
+            }
+            saveMetadataNow()
         }
     }
 

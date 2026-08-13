@@ -15,11 +15,14 @@
 		B00000000000000000000006 /* MarkdownTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* MarkdownTextView.swift */; };
 		B00000000000000000000007 /* NoteModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* NoteModeView.swift */; };
 		B00000000000000000000008 /* ManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* ManagementView.swift */; };
+		B0000000000000000000000D /* MarkdownPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000D /* MarkdownPreviewView.swift */; };
 		B00000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* Assets.xcassets */; };
 		B0000000000000000000000A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* Localizable.xcstrings */; };
 		B10000000000000000000001 /* FrontMatterCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* FrontMatterCodecTests.swift */; };
 		B10000000000000000000002 /* NoteRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* NoteRepositoryTests.swift */; };
 		B10000000000000000000003 /* ApplicationMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* ApplicationMenuTests.swift */; };
+		B10000000000000000000004 /* MarkdownPreviewParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* MarkdownPreviewParserTests.swift */; };
+		B10000000000000000000005 /* AppModelBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005 /* AppModelBehaviorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,9 +48,12 @@
 		A0000000000000000000000A /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		A0000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A0000000000000000000000C /* SimpleMenuNote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SimpleMenuNote.entitlements; sourceTree = "<group>"; };
+		A0000000000000000000000D /* MarkdownPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewView.swift; sourceTree = "<group>"; };
 		A10000000000000000000001 /* FrontMatterCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontMatterCodecTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000002 /* NoteRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteRepositoryTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000003 /* ApplicationMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationMenuTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000004 /* MarkdownPreviewParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewParserTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000005 /* AppModelBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelBehaviorTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000001 /* SimpleMenuNote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SimpleMenuNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000002 /* SimpleMenuNoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SimpleMenuNoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -130,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000006 /* MarkdownTextView.swift */,
+				A0000000000000000000000D /* MarkdownPreviewView.swift */,
 				A00000000000000000000007 /* NoteModeView.swift */,
 				A00000000000000000000008 /* ManagementView.swift */,
 			);
@@ -140,6 +147,8 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000003 /* ApplicationMenuTests.swift */,
+				A10000000000000000000004 /* MarkdownPreviewParserTests.swift */,
+				A10000000000000000000005 /* AppModelBehaviorTests.swift */,
 				A10000000000000000000001 /* FrontMatterCodecTests.swift */,
 				A10000000000000000000002 /* NoteRepositoryTests.swift */,
 			);
@@ -266,6 +275,7 @@
 				B00000000000000000000006 /* MarkdownTextView.swift in Sources */,
 				B00000000000000000000007 /* NoteModeView.swift in Sources */,
 				B00000000000000000000008 /* ManagementView.swift in Sources */,
+				B0000000000000000000000D /* MarkdownPreviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,6 +284,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000003 /* ApplicationMenuTests.swift in Sources */,
+				B10000000000000000000004 /* MarkdownPreviewParserTests.swift in Sources */,
+				B10000000000000000000005 /* AppModelBehaviorTests.swift in Sources */,
 				B10000000000000000000001 /* FrontMatterCodecTests.swift in Sources */,
 				B10000000000000000000002 /* NoteRepositoryTests.swift in Sources */,
 			);

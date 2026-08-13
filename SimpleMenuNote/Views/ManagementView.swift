@@ -26,6 +26,12 @@ struct ManagementView: View {
             }
         }
         .preferredColorScheme(model.preferredColorScheme)
+        .overlay(alignment: .bottom) {
+            if let toast = model.toast {
+                UndoToastView(toast: toast)
+                    .padding(.bottom, 14)
+            }
+        }
         .alert(
             model.localized("error"),
             isPresented: Binding(
@@ -83,7 +89,7 @@ private struct NotesManagementView: View {
 
                     List(selection: $model.selectedManagementNoteID) {
                         ForEach(filteredNotes) { note in
-                            NoteListRow(note: note)
+                            NoteListRow(note: note, deletionOrder: filteredNotes.map(\.id))
                                 .tag(Optional(note.id))
                         }
                     }
@@ -104,23 +110,60 @@ private struct NotesManagementView: View {
 private struct NoteListRow: View {
     @EnvironmentObject private var model: AppModel
     let note: NoteRecord
+    let deletionOrder: [UUID]
+    @State private var hovering = false
+    @State private var confirmDelete = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(model.title(for: note))
-                .lineLimit(1)
-                .font(.headline)
-            HStack {
-                Text(note.updatedAt, style: .date)
-                if !note.tagIDs.isEmpty {
-                    Text(model.tags(for: note).prefix(2).map { "#\($0.name)" }.joined(separator: " "))
-                        .lineLimit(1)
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.title(for: note))
+                    .lineLimit(1)
+                    .font(.headline)
+                HStack {
+                    Text(note.updatedAt, style: .date)
+                    if !note.tagIDs.isEmpty {
+                        Text(model.tags(for: note).prefix(2).map { "#\($0.name)" }.joined(separator: " "))
+                            .lineLimit(1)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            Group {
+                if hovering {
+                    Button(role: .destructive) { requestDeletion() } label: {
+                        Image(systemName: "trash")
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .help(model.localized("delete_note"))
+                } else {
+                    Color.clear.frame(width: 28, height: 28)
                 }
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
+        .onHover { hovering = $0 }
+        .accessibilityAction(named: Text(model.localized("delete_note"))) { requestDeletion() }
+        .alert(model.localized("delete_note_title"), isPresented: $confirmDelete) {
+            Button(model.localized("cancel"), role: .cancel) {}
+            Button(model.localized("delete"), role: .destructive) {
+                model.deleteNote(note.id, orderedNoteIDs: deletionOrder, confirmed: true)
+            }
+        } message: {
+            Text(model.localized("delete_note_message"))
+        }
+    }
+
+    private func requestDeletion() {
+        if model.requiresNoteDeleteConfirmation(for: note.id) {
+            confirmDelete = true
+        } else {
+            model.deleteNote(note.id, orderedNoteIDs: deletionOrder)
+        }
     }
 }
 
@@ -128,7 +171,8 @@ private struct ManagementNoteEditor: View {
     @EnvironmentObject private var model: AppModel
     let noteID: UUID?
     @State private var showTagPicker = false
-    @State private var confirmDelete = false
+    @State private var isPreviewing = false
+    @State private var finishPreviewEditingToken = 0
 
     private var note: NoteRecord? {
         guard let noteID else { return nil }
@@ -151,26 +195,42 @@ private struct ManagementNoteEditor: View {
                             TagPickerView(noteID: note.id).environmentObject(model)
                         }
                     Spacer()
-                    Button(role: .destructive) { confirmDelete = true } label: {
-                        Image(systemName: "trash")
+                    Button {
+                        togglePreview()
+                    } label: {
+                        Image(systemName: isPreviewing ? "pencil" : "eye")
                     }
                     .buttonStyle(.plain)
-                    .help(model.localized("delete_note"))
+                    .help(model.localized(isPreviewing ? "edit" : "preview"))
                 }
                 .padding(10)
                 Divider()
 
-                MarkdownTextView(
-                    text: Binding(
-                        get: { model.notes.first(where: { $0.id == note.id })?.body ?? "" },
-                        set: { model.updateBody(noteID: note.id, body: $0) }
-                    ),
-                    noteID: note.id,
-                    fontSize: model.fontSize,
-                    restorationState: model.editorState(for: note.id),
-                    focusToken: model.editorFocusToken,
-                    onStateChange: { model.updateEditorState($0, for: note.id) }
-                )
+                if isPreviewing {
+                    MarkdownPreviewView(
+                        markdown: Binding(
+                            get: { model.notes.first(where: { $0.id == note.id })?.body ?? "" },
+                            set: { model.updateBody(noteID: note.id, body: $0) }
+                        ),
+                        noteID: note.id,
+                        fontSize: model.fontSize,
+                        restorationState: model.editorState(for: note.id),
+                        finishEditingToken: finishPreviewEditingToken,
+                        onStateChange: { model.updateEditorState($0, for: note.id) }
+                    )
+                } else {
+                    MarkdownTextView(
+                        text: Binding(
+                            get: { model.notes.first(where: { $0.id == note.id })?.body ?? "" },
+                            set: { model.updateBody(noteID: note.id, body: $0) }
+                        ),
+                        noteID: note.id,
+                        fontSize: model.fontSize,
+                        restorationState: model.editorState(for: note.id),
+                        focusToken: model.editorFocusToken,
+                        onStateChange: { model.updateEditorState($0, for: note.id) }
+                    )
+                }
 
                 Divider()
                 HStack {
@@ -182,16 +242,20 @@ private struct ManagementNoteEditor: View {
                 .foregroundStyle(.secondary)
                 .padding(8)
             }
-            .alert(model.localized("delete_note_title"), isPresented: $confirmDelete) {
-                Button(model.localized("cancel"), role: .cancel) {}
-                Button(model.localized("delete"), role: .destructive) { model.deleteNote(note.id) }
-            } message: {
-                Text(model.localized("delete_note_message"))
-            }
         } else {
             Text(model.localized("select_note"))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func togglePreview() {
+        if isPreviewing {
+            isPreviewing = false
+            model.requestEditorFocus()
+        } else {
+            model.flushPendingSave()
+            isPreviewing = true
         }
     }
 }
@@ -245,7 +309,7 @@ private struct TagManagementRow: View {
             Text("\(model.noteCount(for: tag.id))")
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
-            Button(role: .destructive) { confirmDelete = true } label: {
+            Button(role: .destructive) { requestDeletion() } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.plain)
@@ -254,9 +318,19 @@ private struct TagManagementRow: View {
         .onChange(of: tag.name) { draftName = $0 }
         .alert(model.localized("delete_tag_title"), isPresented: $confirmDelete) {
             Button(model.localized("cancel"), role: .cancel) {}
-            Button(model.localized("delete"), role: .destructive) { model.deleteTag(tag.id) }
+            Button(model.localized("delete"), role: .destructive) {
+                model.deleteTag(tag.id, confirmed: true)
+            }
         } message: {
             Text(String(format: model.localized("delete_tag_message"), model.noteCount(for: tag.id)))
+        }
+    }
+
+    private func requestDeletion() {
+        if model.requiresTagDeleteConfirmation {
+            confirmDelete = true
+        } else {
+            model.deleteTag(tag.id)
         }
     }
 }
@@ -367,6 +441,10 @@ private struct SettingsManagementView: View {
                         .font(.title2.bold())
                     Text(model.localized("markdown_guide_intro"))
                         .foregroundStyle(.secondary)
+                    Label(model.localized("markdown_preview_hint"), systemImage: "eye")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
                 }
 
                 ForEach(MarkdownSyntax.allCases) { syntax in
@@ -402,6 +480,12 @@ private struct SettingsManagementView: View {
                 Label(model.localized("show_in_finder"), systemImage: "folder")
             }
             .disabled(model.folderURL == nil)
+            Divider().padding(.vertical, 4)
+            Button {
+                model.resetDeletionConfirmations()
+            } label: {
+                Label(model.localized("reset_delete_confirmations"), systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+            }
         }
     }
 
